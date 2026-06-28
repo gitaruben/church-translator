@@ -1,0 +1,200 @@
+/* ── Reset ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #f3f2ee;
+  --surface:   #ffffff;
+  --surface2:  #eeede8;
+  --border:    rgba(0,0,0,0.09);
+  --borderS:   rgba(0,0,0,0.18);
+  --text:      #1a1a18;
+  --text2:     #58584f;
+  --text3:     #999890;
+  --blue:      #1a6fc4;
+  --blue-bg:   #e7f1fb;
+  --blue-bd:   #a6c7ee;
+  --red:       #c42020;
+  --red-bg:    #fce9e9;
+  --red-bd:    #eeaaaa;
+  --green:     #1a7a3c;
+  --green-bg:  #e7f5ed;
+  --green-bd:  #a6d8b8;
+  --r:         10px;
+  --rL:        16px;
+  --sh:        0 1px 3px rgba(0,0,0,0.06), 0 4px 14px rgba(0,0,0,0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1b19; --surface: #28281f; --surface2: #222218;
+    --border: rgba(255,255,255,0.07); --borderS: rgba(255,255,255,0.16);
+    --text: #e6e6de; --text2: #9e9e96; --text3: #5e5e56;
+    --blue: #559be0; --blue-bg: #182638; --blue-bd: #284868;
+    --red: #e05555; --red-bg: #281818; --red-bd: #583030;
+    --green: #44aa68; --green-bg: #182818; --green-bd: #284838;
+  }
+}
+
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px; line-height: 1.5;
+  min-height: 100vh;
+  display: flex; justify-content: center;
+  padding: 20px 16px 56px;
+}
+
+.app {
+  width: 100%; max-width: 740px;
+  display: flex; flex-direction: column; gap: 13px;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+.header { display: flex; flex-direction: column; gap: 4px; }
+.back { font-size: 13px; color: var(--text3); text-decoration: none; margin-bottom: 2px; }
+.back:hover { color: var(--text2); }
+.role-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; padding: 4px 10px;
+  border-radius: 999px; width: fit-content;
+}
+.role-badge.blue  { background: var(--blue-bg);  color: var(--blue);  border: 1px solid var(--blue-bd); }
+.role-badge.green { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bd); }
+.header h1 { font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+.header p  { font-size: 13px; color: var(--text2); }
+
+/* ── Card ───────────────────────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--rL); box-shadow: var(--sh);
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 13px;
+}
+.card-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--text3);
+}
+
+/* ── Fields ─────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label { font-size: 13px; font-weight: 600; color: var(--text2); }
+.hint { font-weight: 400; color: var(--text3); }
+.tip { font-size: 12px; color: var(--text3); line-height: 1.5; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 420px) { .two-col { grid-template-columns: 1fr; } }
+.row { display: flex; gap: 8px; align-items: center; }
+
+select {
+  width: 100%; height: 40px; font-size: 14px; font-family: inherit;
+  border-radius: var(--r); border: 1px solid var(--borderS);
+  background: var(--surface); color: var(--text);
+  padding: 0 28px 0 10px; appearance: none; outline: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%23888' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+  box-shadow: var(--sh); transition: border-color .15s, box-shadow .15s;
+}
+select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
+
+input[type="range"]    { flex: 1; accent-color: var(--blue); cursor: pointer; }
+input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--blue); cursor: pointer; }
+.checkbox-label {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--text2); cursor: pointer;
+}
+
+.badge { font-size: 12px; color: var(--text2); min-width: 40px; text-align: right; white-space: nowrap; }
+
+/* ── Buttons ────────────────────────────────────────────── */
+.btn-sm {
+  height: 40px; padding: 0 12px; border-radius: var(--r);
+  border: 1px solid var(--borderS); background: var(--surface2);
+  color: var(--text2); font-size: 13px; font-family: inherit;
+  cursor: pointer; white-space: nowrap; transition: background .15s;
+}
+.btn-sm:hover { background: var(--bg); }
+
+.go-btn {
+  width: 100%; height: 64px; border-radius: var(--rL);
+  border: 1.5px solid var(--borderS); background: var(--surface);
+  color: var(--text); font-size: 17px; font-weight: 700; font-family: inherit;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  gap: 12px; box-shadow: var(--sh); transition: all .15s;
+}
+.go-btn:hover { background: var(--surface2); }
+.go-btn.active {
+  background: var(--red-bg); color: var(--red); border-color: var(--red-bd);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.go-btn.green.active {
+  background: var(--green-bg); color: var(--green); border-color: var(--green-bd);
+  animation: none;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* ── Stats row ──────────────────────────────────────────── */
+.stats-row { display: flex; gap: 10px; }
+.stat-box {
+  flex: 1; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); box-shadow: var(--sh);
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 2px;
+}
+.stat-label { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .06em; }
+.stat-val   { font-size: 16px; font-weight: 700; color: var(--text); }
+
+/* ── Panels ─────────────────────────────────────────────── */
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 500px) { .panels { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--rL); box-shadow: var(--sh);
+  padding: 14px; display: flex; flex-direction: column; min-height: 160px;
+}
+.panel.big { min-height: 220px; }
+
+.panel-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--text3);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+
+.dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--red); flex-shrink: 0; display: none;
+}
+.dot.on { display: inline-block; animation: blink 1s infinite; }
+.green-dot { background: var(--green); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.1} }
+
+.spinner { font-size: 13px; display: inline-block; }
+.spinner:not(.hidden) { animation: spin .8s linear infinite; }
+.hidden { display: none !important; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.panel-body { flex: 1; font-size: 15px; line-height: 1.8; overflow-y: auto; max-height: 200px; word-break: break-word; }
+.big-body   { max-height: 300px; font-size: 18px; }
+
+.ph           { color: var(--text3); font-style: italic; }
+.final        { color: var(--text); }
+.interim      { color: var(--text3); font-style: italic; }
+.tgt-final    { color: var(--text); }
+.tgt-interim  { color: var(--blue); font-style: italic; }
+
+/* ── Controls ───────────────────────────────────────────── */
+.ctrl-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+.ctrl-btn {
+  height: 38px; padding: 0 14px; border-radius: var(--r);
+  border: 1px solid var(--borderS); background: var(--surface);
+  color: var(--text2); font-size: 13px; font-family: inherit;
+  cursor: pointer; box-shadow: var(--sh); transition: all .15s;
+}
+.ctrl-btn:hover { background: var(--blue-bg); color: var(--blue); border-color: var(--blue-bd); }
+
+/* ── Status bar ─────────────────────────────────────────── */
+.status-bar {
+  font-size: 13px; color: var(--text2); text-align: center;
+  padding: 10px 14px; border-radius: var(--r); min-height: 38px;
+  transition: background .2s, color .2s;
+}
+.status-bar.info  { background: var(--blue-bg);  color: var(--blue); }
+.status-bar.ok    { background: var(--green-bg); color: var(--green); }
+.status-bar.error { background: var(--red-bg);   color: var(--red); }

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Receiver — Church Translator</title>
+  <link rel="stylesheet" href="/shared.css"/>
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <a href="/" class="back">← Home</a>
+    <div class="role-badge green">🎧 Visitor — Receiver</div>
+    <h1>Live Translation</h1>
+    <p>Translation from the service plays automatically here</p>
+  </header>
+
+  <!-- Activate button (browsers need a user gesture before TTS works) -->
+  <button class="go-btn green" id="activate-btn">
+    <span>▶</span>
+    <span id="activate-label">Tap to start receiving</span>
+  </button>
+
+  <!-- Connection status -->
+  <div class="stats-row">
+    <div class="stat-box" id="conn-box">
+      <span class="stat-label">Connection</span>
+      <span class="stat-val" id="conn-status">Waiting…</span>
+    </div>
+    <div class="stat-box">
+      <span class="stat-label">Phrases received</span>
+      <span class="stat-val" id="phrases-received">0</span>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <section class="card">
+    <h2 class="card-title">⚙️ Settings</h2>
+    <div class="field">
+      <div class="row" style="gap:10px;align-items:center">
+        <label style="flex:0 0 auto;font-size:13px;color:var(--text2)">🐢 Speed</label>
+        <input type="range" id="speed" min="0.5" max="1.4" step="0.05" value="0.85"/>
+        <span id="speed-val" class="badge">0.85×</span>
+      </div>
+    </div>
+    <div class="field">
+      <div class="row" style="gap:10px;align-items:center">
+        <label style="flex:0 0 auto;font-size:13px;color:var(--text2)">🔊 Volume</label>
+        <input type="range" id="volume" min="0" max="1" step="0.05" value="1"/>
+        <span id="vol-val" class="badge">100%</span>
+      </div>
+    </div>
+    <div class="field">
+      <label class="checkbox-label">
+        <input type="checkbox" id="show-interim"/>
+        Show interim (partial) phrases while translating
+      </label>
+    </div>
+  </section>
+
+  <!-- Translation display -->
+  <div class="panel big" id="tgt-panel">
+    <div class="panel-label">
+      <span class="dot green-dot" id="recv-dot"></span>
+      Translation
+    </div>
+    <div class="panel-body big-body" id="tgt-body">
+      <span class="ph">Waiting for broadcast…</span>
+    </div>
+  </div>
+
+  <!-- Replay -->
+  <div class="ctrl-bar">
+    <button class="ctrl-btn" id="replay-btn">🔊 Replay last phrase</button>
+    <button class="ctrl-btn" id="clear-btn">✕ Clear</button>
+  </div>
+
+  <div class="status-bar" id="status">Tap the button above to activate.</div>
+
+</div>
+<script src="/receiver.js"></script>
+</body>
+</html>
