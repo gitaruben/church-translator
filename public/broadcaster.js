@@ -1,13 +1,11 @@
 // ════════════════════════════════════════════════════════════════
-//  broadcaster.js — v3
-//
-//  KEY FIXES:
-//  - sentIndex tracks the last result index already sent as final,
-//    so restarts never re-send already-spoken phrases
-//  - Interim chunks sent every 800ms OR every 5 words, whichever
-//    comes first — receiver hears words much sooner
-//  - Each sent phrase stored in a Set so duplicates are blocked
-//    at the send level too
+//  broadcaster.js — v4
+//  KEY CHANGES:
+//  - Aggressive mic keep-alive: restarts on visibility change,
+//    on focus, on blur, on a watchdog timer every 4s
+//  - "aborted" error handled gracefully — just restarts
+//  - Phrases sent with newline separator for display
+//  - sentPhrases dedup unchanged
 // ════════════════════════════════════════════════════════════════
 
 const BCP47 = {
@@ -39,22 +37,18 @@ let ws            = null;
 let recognition   = null;
 let isRunning     = false;
 let shouldRestart = false;
+let restartTimer  = null;
+let watchdogTimer = null;  // fires every 4s to ensure mic is alive
 
-// Text accumulation
-let displaySrc    = '';   // what we show on screen (final words only)
-let interimSrc    = '';   // current unconfirmed interim words
+let displaySrcLines = [];  // array of confirmed phrases (shown as lines)
+let interimSrc      = '';
 
-// THE FIX for repeats:
-// We store every phrase we've already sent as 'final'.
-// On recognition restart, Chrome re-emits from resultIndex=0,
-// so we compare against this set and skip anything already sent.
+// Dedup: normalized phrase → true
 const sentPhrases = new Set();
 let   phraseCount = 0;
 
-// Interim chunking state
-let lastInterimSent = '';   // last interim text we already broadcast
+let lastInterimSent = '';
 let interimTimer    = null;
-let wordCountTimer  = null;
 
 // ── Helpers ──────────────────────────────────────────────────────
 function esc(t) {
@@ -65,22 +59,18 @@ function setStatus(msg, type) {
   statusEl.className = 'status-bar' + (type ? ' ' + type : '');
 }
 function renderSrc() {
-  let h = '';
-  if (displaySrc)  h += `<span class="final">${esc(displaySrc)} </span>`;
-  if (interimSrc)  h += `<span class="interim">${esc(interimSrc)}</span>`;
+  let h = displaySrcLines.map(l => `<div class="src-line">${esc(l)}</div>`).join('');
+  if (interimSrc) h += `<div class="interim">${esc(interimSrc)}</div>`;
   srcBody.innerHTML = h || '<span class="ph">Waiting for speech…</span>';
   srcBody.scrollTop = srcBody.scrollHeight;
 }
-function renderTgt(text) {
-  tgtBody.innerHTML = text
-    ? `<span class="tgt-final">${esc(text)}</span>`
-    : '<span class="ph">Sent to receivers…</span>';
+function renderTgt(lines) {
+  const h = lines.map(l => `<div class="tgt-line">${esc(l)}</div>`).join('');
+  tgtBody.innerHTML = h || '<span class="ph">Sent to listeners…</span>';
   tgtBody.scrollTop = tgtBody.scrollHeight;
 }
-
-// Normalize a phrase for dedup comparison (trim, collapse spaces, lowercase)
 function normalizePhrase(t) {
-  return t.trim().replace(/\s+/g, ' ').toLowerCase();
+  return t.trim().replace(/\s+/g,' ').toLowerCase();
 }
 
 // ── WebSocket ─────────────────────────────────────────────────────
@@ -90,11 +80,13 @@ function connectWS() {
   ws.onopen = () => {
     ws.send(JSON.stringify({ type: 'hello', role: 'broadcaster' }));
     wsStatusEl.textContent = '🟢 Connected';
-    setStatus('Connected. Select your audio input and tap Start.', 'ok');
+    setStatus('Connected. Select audio input and tap Start.', 'ok');
   };
   ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'receivers') receiverCount.textContent = msg.count;
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'receivers') receiverCount.textContent = msg.count;
+    } catch(_) {}
   };
   ws.onclose = () => {
     wsStatusEl.textContent = '🔴 Disconnected';
@@ -103,44 +95,40 @@ function connectWS() {
   };
   ws.onerror = () => ws.close();
 }
-
 function send(msg) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
 
-// ── Send a final confirmed phrase ─────────────────────────────────
+// ── Send final phrase ─────────────────────────────────────────────
+let sentLines = [];  // parallel array to displaySrcLines for tgt display
+
 function sendFinal(phrase) {
   const normalized = normalizePhrase(phrase);
   if (!normalized) return;
-
-  // Skip if we already sent this exact phrase
   if (sentPhrases.has(normalized)) return;
   sentPhrases.add(normalized);
 
-  displaySrc = (displaySrc ? displaySrc + ' ' : '') + phrase.trim();
+  displaySrcLines.push(phrase.trim());
+  sentLines.push(phrase.trim());
+  interimSrc = '';
   renderSrc();
-  renderTgt(phrase.trim());
+  renderTgt(sentLines);
+
   phraseCount++;
   phrasesSent.textContent = phraseCount;
 
+  // Send raw source — receivers translate themselves
   send({ type: 'final', srcText: phrase.trim(), srcLang: srcLangEl.value });
   setStatus(`✓ Sent: "${phrase.trim().slice(0,60)}${phrase.length>60?'…':''}"`, 'ok');
 }
 
-// ── Send an interim chunk (early preview) ────────────────────────
-// Called frequently — fires every 800ms of interim text,
-// or when word count hits 5, whichever is sooner.
 function sendInterimChunk(text) {
   const normalized = normalizePhrase(text);
   if (!normalized) return;
-  if (normalized === normalizePhrase(lastInterimSent)) return; // no change
-
-  // Don't send interim text that was already finalized
-  // (check if the interim is a prefix of already-sent phrases)
+  if (normalized === normalizePhrase(lastInterimSent)) return;
   for (const sent of sentPhrases) {
     if (sent.startsWith(normalized) || normalized.startsWith(sent)) return;
   }
-
   lastInterimSent = text;
   send({ type: 'interim', srcText: text.trim(), srcLang: srcLangEl.value });
 }
@@ -151,7 +139,7 @@ async function refreshDevices() {
     const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
     tmp.getTracks().forEach(t => t.stop());
   } catch(e) {
-    setStatus('Microphone permission denied. Allow it and try again.', 'error'); return;
+    setStatus('Microphone permission denied.', 'error'); return;
   }
   const devices = await navigator.mediaDevices.enumerateDevices();
   const inputs  = devices.filter(d => d.kind === 'audioinput');
@@ -164,7 +152,6 @@ async function refreshDevices() {
   });
   setStatus(`Found ${inputs.length} audio input(s). Ready.`, 'ok');
 }
-
 refreshBtn.addEventListener('click', refreshDevices);
 window.addEventListener('DOMContentLoaded', () => {
   navigator.mediaDevices.enumerateDevices().then(devices => {
@@ -185,7 +172,7 @@ window.addEventListener('DOMContentLoaded', () => {
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (!SR) {
   goBtn.disabled = true;
-  goLabel.textContent = 'Use Chrome or Edge — speech recognition not supported here';
+  goLabel.textContent = 'Use Chrome or Edge — speech not supported here';
 }
 
 function buildRecognition() {
@@ -195,44 +182,36 @@ function buildRecognition() {
   r.maxAlternatives = 1;
   r.lang = BCP47[srcLangEl.value] || srcLangEl.value;
 
+  r.onstart = () => {
+    // Reset watchdog every time recognition actually starts
+    resetWatchdog();
+  };
+
   r.onresult = (e) => {
+    resetWatchdog();  // mic is alive — reset watchdog
     let currentInterim = '';
 
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const transcript = e.results[i][0].transcript;
-
       if (e.results[i].isFinal) {
-        // Clear interim timers — this phrase is confirmed
         clearTimeout(interimTimer);
-        clearTimeout(wordCountTimer);
         lastInterimSent = '';
         currentInterim  = '';
         interimSrc      = '';
-
-        // sendFinal handles dedup internally — safe to call always
         sendFinal(transcript);
-
       } else {
         currentInterim += transcript;
       }
     }
 
-    // Update interim display and schedule early chunk sends
     if (currentInterim !== interimSrc) {
       interimSrc = currentInterim;
       renderSrc();
-
       const words = currentInterim.trim().split(/\s+/).filter(Boolean);
-
-      // Send immediately if we've hit 5 words
       if (words.length >= 5) {
         clearTimeout(interimTimer);
-        clearTimeout(wordCountTimer);
         sendInterimChunk(currentInterim);
-        // Reset and keep watching for next 5 words
-        wordCountTimer = null;
       } else if (words.length >= 2) {
-        // Start an 800ms timer — if user pauses mid-sentence, send what we have
         clearTimeout(interimTimer);
         interimTimer = setTimeout(() => {
           if (interimSrc.trim()) sendInterimChunk(interimSrc);
@@ -242,23 +221,27 @@ function buildRecognition() {
   };
 
   r.onerror = (e) => {
-    if (e.error === 'no-speech') { if (shouldRestart) scheduleRestart(300); return; }
-    if (e.error === 'not-allowed') {
-      stopAll();
-      setStatus('❌ Microphone blocked. Allow mic access in browser settings.', 'error');
+    // 'aborted' happens when Chrome kills recognition (tab blur, system interrupt)
+    // 'no-speech' happens on silence
+    // Both are safe to restart from
+    const safeErrors = ['no-speech', 'aborted', 'network'];
+    if (safeErrors.includes(e.error)) {
+      if (shouldRestart) scheduleRestart(300);
       return;
     }
-    setStatus('Mic error: ' + e.error, 'error');
+    if (e.error === 'not-allowed') {
+      stopAll();
+      setStatus('❌ Microphone blocked. Allow mic access in browser.', 'error');
+      return;
+    }
+    setStatus('Mic error: ' + e.error + ' — restarting…', 'error');
     if (shouldRestart) scheduleRestart(500);
   };
 
   r.onend = () => {
-    // Recognition ended (timeout, pause, or stop)
-    // Any pending interim that wasn't finalized — send it now
-    if (interimSrc.trim()) {
-      sendInterimChunk(interimSrc);
-    }
-    if (shouldRestart) scheduleRestart(100);
+    // Always restart if we're supposed to be running
+    if (interimSrc.trim()) sendInterimChunk(interimSrc);
+    if (shouldRestart) scheduleRestart(150);
     else stopAll();
   };
 
@@ -266,35 +249,88 @@ function buildRecognition() {
 }
 
 function scheduleRestart(delay) {
-  setTimeout(() => {
+  clearTimeout(restartTimer);
+  restartTimer = setTimeout(() => {
     if (!shouldRestart) return;
     try {
+      if (recognition) { try { recognition.abort(); } catch(_){} }
       recognition = buildRecognition();
       recognition.start();
-    } catch(_) {}
+    } catch(_) {
+      // If start() throws (already running), try again shortly
+      scheduleRestart(500);
+    }
   }, delay);
 }
 
+// ── Watchdog — ensures mic never silently dies ────────────────────
+// Chrome sometimes stops recognition without firing onend or onerror.
+// This timer checks every 4s and restarts if recognition went quiet.
+let lastResultTime = 0;
+
+function resetWatchdog() {
+  lastResultTime = Date.now();
+}
+
+function startWatchdog() {
+  clearInterval(watchdogTimer);
+  watchdogTimer = setInterval(() => {
+    if (!shouldRestart) return;
+    const silence = Date.now() - lastResultTime;
+    // If no result for 6 seconds AND we're supposed to be running — kick it
+    if (silence > 6000) {
+      scheduleRestart(100);
+    }
+  }, 4000);
+}
+
+function stopWatchdog() {
+  clearInterval(watchdogTimer);
+  watchdogTimer = null;
+}
+
+// ── Page visibility — restart when tab comes back into focus ──────
+// Chrome throttles/kills audio capture when the tab is hidden.
+document.addEventListener('visibilitychange', () => {
+  if (!shouldRestart) return;
+  if (document.visibilityState === 'visible') {
+    setStatus('Tab focused — restarting mic…', 'info');
+    scheduleRestart(300);
+  }
+});
+
+// Also restart on window focus (user switches back to Chrome window)
+window.addEventListener('focus', () => {
+  if (!shouldRestart) return;
+  scheduleRestart(300);
+});
+
+// ── Start / Stop ──────────────────────────────────────────────────
 function startAll() {
-  shouldRestart = true; isRunning = true;
-  recognition = buildRecognition();
+  shouldRestart  = true;
+  isRunning      = true;
+  lastResultTime = Date.now();
+  recognition    = buildRecognition();
   try { recognition.start(); }
   catch(e) { setStatus('Cannot start mic: ' + e.message, 'error'); stopAll(); return; }
+  startWatchdog();
   goBtn.classList.add('active');
-  goIcon.textContent = '⏹';
-  goLabel.textContent = 'Stop Broadcasting';
+  goIcon.textContent  = '⏹';
+  goLabel.textContent = 'Stop Booth';
   liveDot.classList.add('on');
   setStatus('🎤 Broadcasting live…', 'info');
 }
 
 function stopAll() {
-  shouldRestart = false; isRunning = false;
+  shouldRestart = false;
+  isRunning     = false;
+  clearTimeout(restartTimer);
   clearTimeout(interimTimer);
-  clearTimeout(wordCountTimer);
-  if (recognition) { try { recognition.stop(); } catch(_){} }
+  stopWatchdog();
+  if (recognition) { try { recognition.abort(); } catch(_){} }
   goBtn.classList.remove('active');
-  goIcon.textContent = '🎤';
-  goLabel.textContent = 'Start Broadcasting';
+  goIcon.textContent  = '🎤';
+  goLabel.textContent = 'Start Booth';
   liveDot.classList.remove('on');
   setStatus('Stopped.', '');
 }
@@ -302,14 +338,13 @@ function stopAll() {
 goBtn.addEventListener('click', () => { if (isRunning) stopAll(); else startAll(); });
 
 clearBtn.addEventListener('click', () => {
-  displaySrc = ''; interimSrc = '';
+  displaySrcLines = []; sentLines = []; interimSrc = '';
   sentPhrases.clear();
   lastInterimSent = '';
   phraseCount = 0;
   phrasesSent.textContent = '0';
   clearTimeout(interimTimer);
-  clearTimeout(wordCountTimer);
-  renderSrc(); renderTgt('');
+  renderSrc(); renderTgt([]);
   send({ type: 'clear' });
   setStatus('Cleared.', '');
 });

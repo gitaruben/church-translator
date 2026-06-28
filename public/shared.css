@@ -179,6 +179,24 @@ input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--blue); c
 .tgt-final    { color: var(--text); }
 .tgt-interim  { color: var(--blue); font-style: italic; }
 
+/* Per-phrase line display */
+.src-line {
+  color: var(--text);
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.src-line:last-child { border-bottom: none; }
+
+.tgt-line {
+  color: var(--text);
+  padding: 3px 0 5px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  font-size: 16px;
+}
+.tgt-line:last-child { border-bottom: none; }
+
 /* ── Controls ───────────────────────────────────────────── */
 .ctrl-bar { display: flex; gap: 10px; flex-wrap: wrap; }
 .ctrl-btn {

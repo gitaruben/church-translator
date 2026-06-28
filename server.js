@@ -26,9 +26,9 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Routes
-app.get('/',            (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/broadcaster', (_, res) => res.sendFile(path.join(__dirname, 'public', 'broadcaster', 'index.html')));
-app.get('/receiver',    (_, res) => res.sendFile(path.join(__dirname, 'public', 'receiver',    'index.html')));
+app.get('/',       (_, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/booth',  (_, res) => res.sendFile(path.join(__dirname, 'public', 'broadcaster', 'index.html')));
+app.get('/listen', (_, res) => res.sendFile(path.join(__dirname, 'public', 'receiver',    'index.html')));
 
 // ── WebSocket relay ───────────────────────────────────────────────
 // Message types sent by broadcaster:

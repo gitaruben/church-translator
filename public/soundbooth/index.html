@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Broadcaster — Church Translator</title>
+  <title>Sound Booth — Church Translator</title>
   <link rel="stylesheet" href="/shared.css"/>
 </head>
 <body>
@@ -13,10 +13,9 @@
     <a href="/" class="back">← Home</a>
     <div class="role-badge blue">🎛️ Sound Booth</div>
     <h1>Live Translator</h1>
-    <p>Audio from console → translated → sent to all receivers instantly</p>
+    <p>Audio from console → transcribed → sent to all listeners</p>
   </header>
 
-  <!-- Setup -->
   <section class="card" id="setup">
     <h2 class="card-title">⚙️ Setup</h2>
 
@@ -27,9 +26,8 @@
         <button class="btn-sm" id="refresh-btn">🔄 Refresh</button>
       </div>
       <p class="tip">
-        ⚠️ Chrome always uses the <strong>system default microphone</strong>.<br>
-        Set your USB interface as default in Windows/Mac sound settings,
-        then click Refresh to confirm it appears selected.
+        ⚠️ Chrome uses the <strong>system default microphone</strong>.<br>
+        Set your USB interface as default in Windows/Mac sound settings first.
       </p>
     </div>
 
@@ -54,24 +52,22 @@
         <option value="ja">🇯🇵 Japanese</option>
         <option value="ko">🇰🇷 Korean</option>
       </select>
-      <p class="tip">Each receiver picks their own language independently.</p>
+      <p class="tip">Each listener picks their own translation language on their device.</p>
     </div>
   </section>
 
-  <!-- Go button -->
   <button class="go-btn" id="go-btn">
     <span id="go-icon">🎤</span>
-    <span id="go-label">Start Broadcasting</span>
+    <span id="go-label">Start Live Session</span>
   </button>
 
-  <!-- Stats row -->
   <div class="stats-row">
-    <div class="stat-box" id="ws-status-box">
+    <div class="stat-box">
       <span class="stat-label">Server</span>
       <span class="stat-val" id="ws-status">Connecting…</span>
     </div>
     <div class="stat-box">
-      <span class="stat-label">Receivers</span>
+      <span class="stat-label">Listeners</span>
       <span class="stat-val" id="receiver-count">0</span>
     </div>
     <div class="stat-box">
@@ -80,12 +76,11 @@
     </div>
   </div>
 
-  <!-- Live panels -->
   <div class="panels">
     <div class="panel">
       <div class="panel-label">
         <span class="dot" id="live-dot"></span>
-        Hearing (original)
+        Hearing
       </div>
       <div class="panel-body" id="src-body">
         <span class="ph">Waiting for speech…</span>
@@ -94,22 +89,20 @@
     <div class="panel">
       <div class="panel-label">
         <span class="spinner hidden" id="spinner">⟳</span>
-        Sending (translated)
+        Sent to listeners
       </div>
       <div class="panel-body" id="tgt-body">
-        <span class="ph">Translation sent to receivers…</span>
+        <span class="ph">Phrases appear here as sent…</span>
       </div>
     </div>
   </div>
 
-  <!-- Controls -->
   <div class="ctrl-bar">
     <button class="ctrl-btn" id="clear-btn">✕ Clear all</button>
   </div>
 
   <div class="status-bar" id="status">Waiting…</div>
-
 </div>
-<script src="/booth.js"></script>
+<script src="/broadcaster.js"></script>
 </body>
 </html>

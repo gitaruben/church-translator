@@ -1,12 +1,11 @@
 // ════════════════════════════════════════════════════════════════
-//  receiver.js — v3
-//
-//  KEY FIXES:
-//  - sentPhrases Set: every spoken phrase tracked — never spoken twice
-//  - Interim handled separately from final, never queued on top
-//  - Volume/speed sliders only update variables, never retrigger speech
-//  - Stop button works immediately
-//  - Language change clears state cleanly
+//  receiver.js — v4
+//  KEY CHANGES:
+//  - Phrases shown as new lines, not appended inline
+//  - Final phrases: displayed + spoken once, never repeated
+//  - Interim phrases: displayed only (no TTS) — avoids overlap
+//    and clutter; TTS fires only on confirmed final phrases
+//  - Dedup by normalized translated text
 // ════════════════════════════════════════════════════════════════
 
 const BCP47 = {
@@ -42,20 +41,19 @@ const clearBtn      = document.getElementById('clear-btn');
 const statusEl      = document.getElementById('status');
 
 // ── State ────────────────────────────────────────────────────────
-let ws           = null;
-let activated    = false;
-let isSpeaking   = false;
+let ws             = null;
+let activated      = false;
+let isSpeaking     = false;
 
-let displayText  = '';       // all confirmed text shown on screen
-let lastPhrase   = '';       // last final phrase spoken (for replay)
-let lastPhraseLang = 'ne';   // language of lastPhrase
+let displayLines   = [];    // confirmed translated lines shown on screen
+let interimDisplay = '';    // current interim text shown (not spoken)
+let lastPhrase     = '';
+let lastPhraseLang = 'ne';
 
-// THE FIX: track every phrase we've already spoken
-// Key = normalized translated text → prevents any phrase playing twice
+// Dedup: normalized translated phrase → never spoken twice
 const spokenPhrases = new Set();
 
-// In-flight translation requests: srcText → promise
-// So if the same interim arrives twice we don't double-translate
+// In-flight translation cache
 const pendingTranslations = new Map();
 
 let speechRate = 0.85;
@@ -72,16 +70,17 @@ function setStatus(msg, type) {
 function normalizePhrase(t) {
   return t.trim().replace(/\s+/g,' ').toLowerCase();
 }
-function renderDisplay(interimText) {
-  let h = '';
-  if (displayText) h += `<span class="tgt-final">${esc(displayText)} </span>`;
-  if (interimText && showInterimEl.checked)
-    h += `<span class="tgt-interim">${esc(interimText)}…</span>`;
+
+function renderDisplay() {
+  let h = displayLines.map(l => `<div class="tgt-line">${esc(l)}</div>`).join('');
+  if (interimDisplay && showInterimEl.checked) {
+    h += `<div class="tgt-interim">${esc(interimDisplay)}…</div>`;
+  }
   tgtBody.innerHTML = h || '<span class="ph">Waiting for broadcast…</span>';
   tgtBody.scrollTop = tgtBody.scrollHeight;
 }
 
-// ── Sliders — ONLY update variables, no speech side effects ──────
+// ── Sliders — ONLY update variables ──────────────────────────────
 speedEl.addEventListener('input', () => {
   speechRate = parseFloat(speedEl.value);
   speedValEl.textContent = speechRate.toFixed(2) + '×';
@@ -95,12 +94,11 @@ volumeEl.addEventListener('input', () => {
 tgtLangEl.addEventListener('change', () => {
   const name = LANG_NAMES[tgtLangEl.value] || tgtLangEl.value;
   tgtLangLabel.textContent = name;
-  // Clear everything — new language = fresh session
-  displayText = ''; lastPhrase = '';
+  displayLines = []; interimDisplay = ''; lastPhrase = '';
   spokenPhrases.clear();
   pendingTranslations.clear();
   stopSpeaking();
-  renderDisplay('');
+  renderDisplay();
   setStatus('Language: ' + name + '. Ready.', 'ok');
 });
 
@@ -125,7 +123,7 @@ function speakNow(text, langCode, vol, rate) {
               || voices.find(v => v.lang.startsWith(langCode));
   if (match) utt.voice = match;
 
-  utt.onstart = () => { isSpeaking = true; stopBtn.classList.remove('hidden'); };
+  utt.onstart = () => { isSpeaking = true;  stopBtn.classList.remove('hidden'); };
   utt.onend   = () => { isSpeaking = false; stopBtn.classList.add('hidden'); };
   utt.onerror = (ev) => {
     if (ev.error !== 'interrupted') setStatus('Speech error: ' + ev.error, 'error');
@@ -136,15 +134,12 @@ function speakNow(text, langCode, vol, rate) {
   window.speechSynthesis.speak(utt);
 }
 
-// ── Translation (MyMemory, free, no key) ─────────────────────────
+// ── Translation ───────────────────────────────────────────────────
 async function translate(srcText, srcLang, tgtLang) {
   if (!srcText || !srcText.trim()) return null;
   if (srcLang === tgtLang) return srcText;
-
-  // Reuse in-flight request for same text (avoids double API calls)
   const key = srcText + '|' + srcLang + '|' + tgtLang;
   if (pendingTranslations.has(key)) return pendingTranslations.get(key);
-
   const promise = fetch(
     'https://api.mymemory.translated.net/get'
     + '?q='        + encodeURIComponent(srcText.trim())
@@ -156,13 +151,13 @@ async function translate(srcText, srcLang, tgtLang) {
     if (data.responseStatus !== 200) throw new Error(data.responseDetails);
     return data.responseData.translatedText;
   })
-  .catch(err => { pendingTranslations.delete(key); throw err; });
-
+  .catch(e => { pendingTranslations.delete(key); throw e; });
   pendingTranslations.set(key, promise);
   return promise;
 }
 
-// ── Handle incoming FINAL phrase ──────────────────────────────────
+// ── Handle FINAL phrase ───────────────────────────────────────────
+// Translate → add as new line → speak once → never repeat
 async function handleFinal(srcText, srcLang) {
   const tl = tgtLangEl.value;
   let out;
@@ -174,27 +169,26 @@ async function handleFinal(srcText, srcLang) {
   if (!out) return;
 
   const normalized = normalizePhrase(out);
-
-  // If we already spoke this exact translated phrase — skip
-  if (spokenPhrases.has(normalized)) return;
+  if (spokenPhrases.has(normalized)) return;  // already spoken — skip
   spokenPhrases.add(normalized);
 
-  displayText = (displayText ? displayText + ' ' : '') + out;
-  lastPhrase  = out;
+  // Clear interim display — final phrase replaces it
+  interimDisplay = '';
+  displayLines.push(out);
+  lastPhrase     = out;
   lastPhraseLang = tl;
   phrasesEl.textContent = spokenPhrases.size;
-  renderDisplay('');
+  renderDisplay();
 
-  // Interrupt any interim whisper and speak clearly
+  // Speak it — this is the only place TTS fires for final phrases
   speakNow(out, tl, speechVol, speechRate);
   setStatus('🔊 ' + out.slice(0, 70) + (out.length > 70 ? '…' : ''), 'info');
 }
 
-// ── Handle incoming INTERIM chunk ────────────────────────────────
+// ── Handle INTERIM chunk ──────────────────────────────────────────
+// Translate → show on screen ONLY — no TTS for interim
+// This keeps the listener slightly ahead visually without audio clutter
 async function handleInterim(srcText, srcLang) {
-  // If something final is currently being spoken, don't interrupt
-  if (isSpeaking) { renderDisplay(srcText); return; }
-
   const tl = tgtLangEl.value;
   let out;
   try {
@@ -203,32 +197,26 @@ async function handleInterim(srcText, srcLang) {
   if (!out) return;
 
   const normalized = normalizePhrase(out);
+  if (spokenPhrases.has(normalized)) return;  // already spoken as final — don't re-show
 
-  // If this interim text was already spoken as a final — skip
-  if (spokenPhrases.has(normalized)) return;
-
-  // Show it on screen
-  renderDisplay(out);
-
-  // Whisper at 22% volume — soft preview
-  speakNow(out, tl, Math.min(speechVol * 0.22, 0.25), Math.min(speechRate + 0.1, 1.5));
+  interimDisplay = out;
+  renderDisplay();
+  // NO speakNow() here — interim is display-only
 }
 
-// ── Activate ─────────────────────────────────────────────────────
+// ── Activate ──────────────────────────────────────────────────────
 activateBtn.addEventListener('click', () => {
   if (activated) return;
   activated = true;
   activateBtn.classList.add('green', 'active');
-  activateLabel.textContent = 'Receiving — translation plays automatically';
+  activateLabel.textContent = 'Connected — translation plays automatically';
   tgtLangLabel.textContent  = LANG_NAMES[tgtLangEl.value] || tgtLangEl.value;
   recvDot.classList.add('on');
   setStatus('✓ Active. Waiting for preacher to speak…', 'ok');
-
   if ('speechSynthesis' in window) {
     window.speechSynthesis.getVoices();
     window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
   }
-
   connectWS();
 });
 
@@ -238,39 +226,26 @@ stopBtn.addEventListener('click', () => { stopSpeaking(); setStatus('Stopped.', 
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}`);
-
   ws.onopen = () => {
     ws.send(JSON.stringify({ type: 'hello', role: 'receiver' }));
     connStatus.textContent = '🟢 Connected';
     setStatus('Connected. Waiting for broadcast…', 'info');
   };
-
   ws.onmessage = (e) => {
     let msg;
     try { msg = JSON.parse(e.data); } catch { return; }
-
     if (msg.type === 'clear') {
-      displayText = ''; lastPhrase = '';
-      spokenPhrases.clear();
-      pendingTranslations.clear();
+      displayLines = []; interimDisplay = ''; lastPhrase = '';
+      spokenPhrases.clear(); pendingTranslations.clear();
       stopSpeaking();
       phrasesEl.textContent = '0';
-      renderDisplay('');
-      setStatus('Cleared by broadcaster.', '');
+      renderDisplay();
+      setStatus('Cleared by booth.', '');
       return;
     }
-
-    if (msg.type === 'interim') {
-      handleInterim(msg.srcText, msg.srcLang);
-      return;
-    }
-
-    if (msg.type === 'final') {
-      handleFinal(msg.srcText, msg.srcLang);
-      return;
-    }
+    if (msg.type === 'interim') { handleInterim(msg.srcText, msg.srcLang); return; }
+    if (msg.type === 'final')   { handleFinal(msg.srcText, msg.srcLang);   return; }
   };
-
   ws.onclose = () => {
     connStatus.textContent = '🔴 Disconnected';
     setStatus('Lost connection. Reconnecting…', 'error');
@@ -285,13 +260,11 @@ replayBtn.addEventListener('click', () => {
   speakNow(lastPhrase, lastPhraseLang, speechVol, speechRate);
   setStatus('🔊 Replaying…', 'info');
 });
-
 clearBtn.addEventListener('click', () => {
-  displayText = ''; lastPhrase = '';
-  spokenPhrases.clear();
-  pendingTranslations.clear();
+  displayLines = []; interimDisplay = ''; lastPhrase = '';
+  spokenPhrases.clear(); pendingTranslations.clear();
   stopSpeaking();
   phrasesEl.textContent = '0';
-  renderDisplay('');
+  renderDisplay();
   setStatus('Cleared.', '');
 });
