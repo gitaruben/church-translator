@@ -151,31 +151,27 @@ async function translate(text, sl, tl) {
 }
 
 async function translateAndSend(phrase) {
-  const sl = srcLangEl.value, tl = tgtLangEl.value;
+  const sl = srcLangEl.value;
   spinner.classList.remove('hidden');
   try {
-    const out = await translate(phrase, sl, tl);
-    if (!out) return;
-    finalTgt = (finalTgt ? finalTgt + ' ' : '') + out;
+    // Send the RAW source text + source language to all receivers.
+    // Each receiver translates into their own chosen language independently.
+    finalTgt = (finalTgt ? finalTgt + ' ' : '') + phrase;
     renderTgt();
     phraseCount++;
     phrasesSent.textContent = phraseCount;
-    // Send to all receivers
-    send({ type: 'final', text: out, lang: tl });
-    setStatus(`✓ Sent: "${out.slice(0,50)}${out.length>50?'…':''}"`, 'ok');
+    send({ type: 'final', srcText: phrase, srcLang: sl });
+    setStatus(`✓ Sent: "${phrase.slice(0,60)}${phrase.length>60?'…':''}"`, 'ok');
   } catch(e) {
-    setStatus('Translation error: ' + e.message, 'error');
+    setStatus('Send error: ' + e.message, 'error');
   } finally {
     spinner.classList.add('hidden');
   }
 }
 
-async function translateInterimAndSend(text) {
-  const sl = srcLangEl.value, tl = tgtLangEl.value;
-  try {
-    const out = await translate(text, sl, tl);
-    if (out) send({ type: 'interim', text: out, lang: tl });
-  } catch(_) {}
+function sendInterim(text) {
+  const sl = srcLangEl.value;
+  send({ type: 'interim', srcText: text, srcLang: sl });
 }
 
 // ── Speech recognition ────────────────────────────────────────────
@@ -208,7 +204,7 @@ function buildRecognition() {
       interimSrc = newInterim; renderSrc();
       clearTimeout(interimTimer);
       if (newInterim.trim().split(/\s+/).length >= 3) {
-        interimTimer = setTimeout(() => translateInterimAndSend(newInterim.trim()), 1400);
+        interimTimer = setTimeout(() => sendInterim(newInterim.trim()), 1400);
       }
     }
   };
