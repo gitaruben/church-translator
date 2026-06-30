@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Broadcaster — Church Translator</title>
+  <title>Sound Booth — Church Translator</title>
   <link rel="stylesheet" href="/shared.css"/>
 </head>
 <body>
@@ -13,7 +13,7 @@
     <a href="/" class="back">← Home</a>
     <div class="role-badge blue">🎛️ Sound Booth</div>
     <h1>Live Translator</h1>
-    <p>Audio from console → translated → sent to all receivers instantly</p>
+    <p>Audio from console → translated → sent to all listeners instantly</p>
   </header>
 
   <!-- Setup -->
@@ -54,14 +54,14 @@
         <option value="ja">🇯🇵 Japanese</option>
         <option value="ko">🇰🇷 Korean</option>
       </select>
-      <p class="tip">Each receiver picks their own language independently.</p>
+      <p class="tip">Each listener picks their own language independently.</p>
     </div>
   </section>
 
   <!-- Go button -->
   <button class="go-btn" id="go-btn">
     <span id="go-icon">🎤</span>
-    <span id="go-label">Start Broadcasting</span>
+    <span id="go-label">Start Booth</span>
   </button>
 
   <!-- Stats row -->
@@ -71,8 +71,8 @@
       <span class="stat-val" id="ws-status">Connecting…</span>
     </div>
     <div class="stat-box">
-      <span class="stat-label">Receivers</span>
-      <span class="stat-val" id="receiver-count">0</span>
+      <span class="stat-label">Listeners</span>
+      <span class="stat-val" id="listener-count">0</span>
     </div>
     <div class="stat-box">
       <span class="stat-label">Phrases sent</span>
@@ -97,7 +97,7 @@
         Sending (translated)
       </div>
       <div class="panel-body" id="tgt-body">
-        <span class="ph">Translation sent to receivers…</span>
+        <span class="ph">Sent to listeners…</span>
       </div>
     </div>
   </div>

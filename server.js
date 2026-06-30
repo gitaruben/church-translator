@@ -98,11 +98,11 @@ server.listen(PORT, () => {
   console.log('');
   console.log('  ✝️  Church Live Translator is running!');
   console.log('');
-  console.log('  Sound booth (broadcaster):');
-  console.log(`    Local:   http://localhost:${PORT}/broadcaster`);
+  console.log('  Sound Booth:');
+  console.log(`    Local:   http://localhost:${PORT}/booth`);
   console.log('');
-  console.log('  Visitor\'s phone (receiver):');
-  console.log(`    Local:   http://YOUR_PC_IP:${PORT}/receiver`);
+  console.log('  Listener (visitor phone):');
+  console.log(`    Local:   http://YOUR_PC_IP:${PORT}/listen`);
   console.log('    (find your PC IP: run  ipconfig  in a new terminal)');
   console.log('');
   console.log('  If deployed to cloud, replace YOUR_PC_IP with your domain.');
